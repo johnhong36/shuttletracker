@@ -40,12 +40,14 @@ type Config struct {
 
 // New creates an Updater.
 func New(cfg Config, ms shuttletracker.ModelService) (*Updater, error) {
+	// Create Updater object
 	updater := &Updater{
 		cfg:   cfg,
 		ms:    ms,
 		mutex: &sync.Mutex{},
 	}
 
+	// err gets filled and returns "nil" if ParseDuration returns an error
 	interval, err := time.ParseDuration(cfg.UpdateInterval)
 	if err != nil {
 		return nil, err
@@ -61,6 +63,7 @@ func New(cfg Config, ms shuttletracker.ModelService) (*Updater, error) {
 }
 
 func NewConfig(v *viper.Viper) *Config {
+	// Create Config object
 	cfg := &Config{
 		UpdateInterval: "10s",
 		DataFeed:       "https://shuttles.rpi.edu/datafeed",
@@ -89,12 +92,14 @@ func (u *Updater) Run() {
 func (u *Updater) update() {
 	// Make request to iTrak data feed
 	client := http.Client{Timeout: time.Second * 5}
+	// HTTP GET request from https://shuttles.rpi.edu/datafeed
 	resp, err := client.Get(u.cfg.DataFeed)
 	if err != nil {
 		log.WithError(err).Error("Could not get data feed.")
 		return
 	}
 
+	// Prints errors in the case that the GET request doesn't give StatusOK
 	if resp.StatusCode != http.StatusOK {
 		log.Errorf("data feed status code %d", resp.StatusCode)
 		return
@@ -108,11 +113,13 @@ func (u *Updater) update() {
 	}
 	resp.Body.Close()
 
+	// Create a DataFeedResponseobject in dfresp
 	dfresp := &DataFeedResponse{
 		Body:       body,
 		StatusCode: resp.StatusCode,
 		Headers:    resp.Header,
 	}
+	// Sets the variable lastDataFeedResponse to dfresp in a protected manner
 	u.setLastResponse(dfresp)
 
 	delim := "eof"
@@ -159,8 +166,10 @@ func (u *Updater) handleVehicleData(vehicleData string) {
 
 	// Create new vehicle update & insert update into database
 
+	// Parses out the string "Vehicle ID:" so itrakID is just the ID itself
 	itrakID := strings.Replace(result["id"], "Vehicle ID:", "", -1)
 	vehicle, err := u.ms.VehicleWithTrackerID(itrakID)
+	// Handles error checking in the case vehicles are unknown
 	if err == shuttletracker.ErrVehicleNotFound {
 		log.Warnf("Unknown vehicle ID \"%s\" returned by iTrak. Make sure all vehicles have been added.", itrakID)
 		return
@@ -175,6 +184,7 @@ func (u *Updater) handleVehicleData(vehicleData string) {
 		log.WithError(err).Error("unable to parse iTRAK time and date")
 		return
 	}
+
 	lastUpdate, err := u.ms.LatestLocation(vehicle.ID)
 	if err != nil && err != shuttletracker.ErrLocationNotFound {
 		log.WithError(err).Error("unable to retrieve last update")
@@ -193,6 +203,8 @@ func (u *Updater) handleVehicleData(vehicleData string) {
 		return
 	}
 
+	// Sets latitude and longitude by removing the strings "lat:", "lon" and
+	// "dir" from the numbers themselves
 	latitude, err := strconv.ParseFloat(strings.Replace(result["lat"], "lat:", "", -1), 64)
 	if err != nil {
 		log.WithError(err).Error("unable to parse latitude as float")
@@ -218,6 +230,7 @@ func (u *Updater) handleVehicleData(vehicleData string) {
 
 	trackerID := strings.Replace(result["id"], "Vehicle ID:", "", -1)
 
+	// Create a new shuttletracker.Location object in update
 	update := &shuttletracker.Location{
 		TrackerID: trackerID,
 		Latitude:  latitude,
@@ -230,6 +243,7 @@ func (u *Updater) handleVehicleData(vehicleData string) {
 		update.RouteID = &route.ID
 	}
 
+	// Creates the location if err isn't nil: in line command
 	if err := u.ms.CreateLocation(update); err != nil {
 		log.WithError(err).Errorf("could not create location")
 	}
@@ -244,11 +258,14 @@ func kphToMPH(kmh float64) float64 {
 // It may return an empty route if it does not believe a vehicle is on any route.
 // nolint: gocyclo
 func (u *Updater) GuessRouteForVehicle(vehicle *shuttletracker.Vehicle) (route *shuttletracker.Route, err error) {
+	// ms.Routes() just grabs the routes in a pointer array format
 	routes, err := u.ms.Routes()
 	if err != nil {
 		return nil, err
 	}
 
+	// Create new dynamic array routeDistances, and the loop initializes all to 0
+	// routeDistances will hold the route distances, and the min is the approximate
 	routeDistances := make(map[int64]float64)
 	for _, route := range routes {
 		routeDistances[route.ID] = 0
@@ -261,12 +278,14 @@ func (u *Updater) GuessRouteForVehicle(vehicle *shuttletracker.Vehicle) (route *
 		return
 	}
 
+	// Uses updates to approximate route
 	for _, update := range updates {
 		for _, route := range routes {
 			if !route.Enabled || !route.Active {
 				routeDistances[route.ID] += math.Inf(0)
 			}
 			nearestDistance := math.Inf(0)
+			// Calculate distance with basic distance formula, and update nearest
 			for _, point := range route.Points {
 				distance := math.Sqrt(math.Pow(update.Latitude-point.Latitude, 2) +
 					math.Pow(update.Longitude-point.Longitude, 2))
@@ -277,10 +296,13 @@ func (u *Updater) GuessRouteForVehicle(vehicle *shuttletracker.Vehicle) (route *
 			if nearestDistance > .003 {
 				nearestDistance += 50
 			}
+			// Append to routeDistances
 			routeDistances[route.ID] += nearestDistance
 		}
 	}
 
+	// Goes through the routeDistances list and finds the smallest one, which is
+	// the approximate.
 	minDistance := math.Inf(0)
 	var minRouteID int64
 	for id := range routeDistances {
@@ -302,6 +324,7 @@ func (u *Updater) GuessRouteForVehicle(vehicle *shuttletracker.Vehicle) (route *
 		return nil, nil
 	}
 
+	// Create "route" as the guess and return it
 	route, err = u.ms.Route(minRouteID)
 	if err != nil {
 		return route, err
@@ -325,6 +348,7 @@ func itrakTimeDate(itrakTime, itrakDate string) (time.Time, error) {
 	return time.Parse("date:01022006 time:150405", combined)
 }
 
+// Locks and unlocks the mutex in order to avoid errors in synchronization
 func (u *Updater) setLastResponse(dfresp *DataFeedResponse) {
 	u.mutex.Lock()
 	u.lastDataFeedResponse = dfresp

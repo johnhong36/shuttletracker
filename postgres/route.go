@@ -21,6 +21,7 @@ type RouteService struct {
 	db *sql.DB
 }
 
+// Initializes how the data is represented in the Postgres database
 func (rs *RouteService) initializeSchema(db *sql.DB) error {
 	rs.db = db
 	schema := `
@@ -100,7 +101,7 @@ $$ LANGUAGE sql;
 	return err
 }
 
-// TODO: document this
+// Essentially typedefs []shuttletracker.Point as scanPoints
 type scanPoints struct {
 	points []shuttletracker.Point
 }

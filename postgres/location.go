@@ -12,7 +12,9 @@ type LocationService struct {
 	db *sql.DB
 }
 
+// Initializes how the data is represented in the Postgres database
 func (ls *LocationService) initializeSchema(db *sql.DB) error {
+	// Postgres command that creates a location table in the database
 	ls.db = db
 	schema := `
 CREATE TABLE IF NOT EXISTS locations (
@@ -63,6 +65,9 @@ func (ls *LocationService) DeleteLocationsBefore(before time.Time) (int, error) 
 	if err != nil {
 		return 0, err
 	}
+
+	// n contains the number of rows that were deleted, so if it's 0, there was
+	// no location
 	n, err := res.RowsAffected()
 	if err != nil {
 		return 0, err

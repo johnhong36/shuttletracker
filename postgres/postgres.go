@@ -39,6 +39,7 @@ func New(cfg Config) (*Postgres, error) {
 
 	pg := &Postgres{}
 
+	// Initializes every table by calling initialize on all go structures
 	err = pg.VehicleService.initializeSchema(db)
 	if err != nil {
 		return nil, err
@@ -63,7 +64,7 @@ func New(cfg Config) (*Postgres, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	// The nil represents the error
 	return pg, nil
 }
 

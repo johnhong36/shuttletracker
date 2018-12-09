@@ -11,7 +11,9 @@ type MessageService struct {
 	db *sql.DB
 }
 
+// Initializes how the data is represented in the Postgres database
 func (ms *MessageService) initializeSchema(db *sql.DB) error {
+	// Postgres command that creates a messages table in the database
 	ms.db = db
 	schema := `
 CREATE TABLE IF NOT EXISTS messages (
