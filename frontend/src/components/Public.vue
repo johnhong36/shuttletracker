@@ -177,7 +177,19 @@ export default Vue.extend({
       this.$store.state.Stops.forEach((stop: Stop) => {
         const marker = L.marker([stop.latitude, stop.longitude], {icon: StopIcon});
         if (this.Map !== undefined) {
-          marker.bindPopup(stop.name);
+          //marker.bindPopup(stop.name);
+	  date = new Date();
+	  // ideally, times would be ordered smallest to largest 
+	  for (i in stop.getTimes()) {
+	      if (date.getHours() < int(i.substring(0, i.indexOf(":")))) {
+	          marker.bindPopup(i);
+	      } else {
+	          continue;
+	      }
+	      if (date.getMinutes() < int(i.substring(i.indexOf(":"), i.indexOf(":"), 2))) {
+	          marker.bindPopup(i);
+	      }
+	  }
           marker.addTo(this.Map);
         }
       });
